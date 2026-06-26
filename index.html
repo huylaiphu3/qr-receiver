@@ -3,45 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>QR File Receiver</title>
-<!-- iPhone có mạng nên nạp jsQR từ CDN cho gọn -->
+<title>QR Receiver — Fountain (LT)</title>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #0a0a0a; color: #fff;
-    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-  }
-  h1 { font-size: 17px; font-weight: 600; padding: 14px; }
-  #camera-wrap { position: relative; width: 100%; max-width: 440px; }
-  #video { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: #111; }
-  #canvas { display: none; }
-  .overlay { position: absolute; inset: 0; pointer-events: none; }
-  /* 4 ô mờ gợi ý lưới 2x2 của bên gửi */
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:#0a0a0a; color:#fff;
+         min-height:100vh; display:flex; flex-direction:column; align-items:center; }
+  h1 { font-size:17px; font-weight:600; padding:14px; }
+  .sub { font-size:12px; color:#666; margin-top:-8px; padding-bottom:6px; }
+  #camera-wrap { position:relative; width:100%; max-width:440px; }
+  #video { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:#111; }
+  #canvas { display:none; }
+  .overlay { position:absolute; inset:0; pointer-events:none; }
   .grid-hint { position:absolute; inset:8%; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:6%; }
-  .grid-hint > div { border:1.5px dashed rgba(74,222,128,0.35); border-radius:8px; }
-  #status { font-size: 13px; color: #4ade80; padding: 10px 16px 4px; text-align: center; min-height: 34px; }
-  #progress-wrap { width: calc(100% - 32px); max-width: 408px; margin: 6px 0; }
-  #progress-bar-bg { background: #222; border-radius: 99px; height: 10px; overflow: hidden; }
-  #progress-bar { height: 100%; background: linear-gradient(90deg, #22c55e, #4ade80); border-radius: 99px; width: 0%; transition: width 0.25s ease; }
-  #progress-text { font-size: 12px; color: #888; text-align: center; margin-top: 4px; }
-  #chunk-grid { display: flex; flex-wrap: wrap; gap: 2px; max-height: 78px; overflow: hidden; margin: 10px 16px; justify-content:center; }
-  .chunk-dot { width: 8px; height: 8px; border-radius: 2px; background: #222; }
-  .chunk-dot.got { background: #4ade80; }
-  #banner { display: none; border-radius: 12px; padding: 13px 18px; margin: 8px 16px; text-align: center; font-size: 14px; line-height: 1.55; }
-  #banner.ok  { background: #14532d; border: 1px solid #22c55e; }
-  #banner.bad { background: #4c1d1d; border: 1px solid #ef4444; }
-  #btn-wrap { display: flex; gap: 10px; padding: 10px 16px 22px; width: 100%; max-width: 440px; }
-  button { flex: 1; padding: 13px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
-  #btn-start    { background: #22c55e; color: #000; }
-  #btn-reset    { background: #222;    color: #fff; }
-  #btn-download { background: #3b82f6; color: #fff; display: none; }
-  a.dl-unverified { color:#fca5a5; font-size:12px; text-decoration:underline; cursor:pointer; }
+  .grid-hint>div { border:1.5px dashed rgba(74,222,128,0.35); border-radius:8px; }
+  #status { font-size:13px; color:#4ade80; padding:10px 16px 4px; text-align:center; min-height:34px; }
+  #progress-wrap { width:calc(100% - 32px); max-width:408px; margin:6px 0; }
+  #bar-bg { background:#222; border-radius:99px; height:12px; overflow:hidden; }
+  #bar { height:100%; background:linear-gradient(90deg,#22c55e,#4ade80); border-radius:99px; width:0%; transition:width .15s ease; }
+  #pct { font-size:13px; color:#ddd; text-align:center; margin-top:6px; font-weight:600; }
+  #meta { font-size:11px; color:#777; text-align:center; margin-top:2px; }
+  #banner { display:none; border-radius:12px; padding:13px 18px; margin:10px 16px; text-align:center; font-size:14px; line-height:1.55; }
+  #banner.ok  { background:#14532d; border:1px solid #22c55e; }
+  #banner.bad { background:#4c1d1d; border:1px solid #ef4444; }
+  #btn-wrap { display:flex; gap:10px; padding:10px 16px 22px; width:100%; max-width:440px; }
+  button { flex:1; padding:13px; border:none; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; }
+  #btn-start { background:#22c55e; color:#000; }
+  #btn-reset { background:#222; color:#fff; }
+  #btn-dl    { background:#3b82f6; color:#fff; display:none; }
 </style>
 </head>
 <body>
-<h1>📡 QR File Receiver</h1>
+<h1>📡 QR Receiver — Fountain</h1>
+<div class="sub">Không cần đủ frame — gom đủ là tự giải. Cứ chĩa vào lưới tới khi xong.</div>
 <div id="camera-wrap">
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
@@ -49,34 +43,21 @@
 </div>
 <div id="status">Nhấn Bắt đầu để mở camera</div>
 <div id="progress-wrap">
-  <div id="progress-bar-bg"><div id="progress-bar"></div></div>
-  <div id="progress-text">Chưa nhận chunk nào</div>
+  <div id="bar-bg"><div id="bar"></div></div>
+  <div id="pct">0%</div>
+  <div id="meta">Chưa nhận symbol nào</div>
 </div>
-<div id="chunk-grid"></div>
 <div id="banner"></div>
 <div id="btn-wrap">
-  <button id="btn-start"    onclick="startScan()">▶ Bắt đầu</button>
-  <button id="btn-reset"    onclick="resetAll()">↺ Reset</button>
-  <button id="btn-download" onclick="downloadFile(true)">⬇ Tải file</button>
+  <button id="btn-start" onclick="startScan()">▶ Bắt đầu</button>
+  <button id="btn-reset" onclick="resetAll()">↺ Reset</button>
+  <button id="btn-dl"    onclick="downloadFile()">⬇ Tải file</button>
 </div>
-
 <script>
-const video    = document.getElementById('video');
-const canvas   = document.getElementById('canvas');
-const ctx      = canvas.getContext('2d', { willReadFrequently: true });
-const statusEl = document.getElementById('status');
-const progBar  = document.getElementById('progress-bar');
-const progText = document.getElementById('progress-text');
-const grid     = document.getElementById('chunk-grid');
-const banner   = document.getElementById('banner');
-const btnDl    = document.getElementById('btn-download');
+/* ===== LT fountain decoder core (thuần, không DOM) =====
+ * Dùng chung cho trang nhận (HTML) và bộ test Node. KHÔNG sửa lệch giữa 2 nơi. */
 
-let chunks = {};          // idx -> Uint8Array (byte zip thô của chunk)
-let total = -1;
-let expectedCrc = null;   // CRC32 hex của cả file, lấy từ header mỗi QR
-let scanning = false, animId = null, fileData = null;
-
-// ── CRC32 (zlib, poly 0xEDB88320) — khớp java.util.zip.CRC32 bên gửi ──
+// CRC32 zlib (poly 0xEDB88320) — khớp java.util.zip.CRC32
 function crc32(u8) {
   let c = ~0;
   for (let i = 0; i < u8.length; i++) {
@@ -86,181 +67,195 @@ function crc32(u8) {
   return ((~c) >>> 0).toString(16).padStart(8, '0');
 }
 
-async function startScan() {
-  if (typeof jsQR !== 'function') {
-    statusEl.textContent = '❌ Chưa nạp được jsQR (cần mạng lần đầu để tải thư viện).';
-    return;
+function xorInto(a, b) { for (let i = 0; i < a.length; i++) a[i] ^= b[i]; }
+
+// Tách 1 symbol từ mảng byte QR. Trả về object hoặc null nếu không hợp lệ.
+function parseSymbol(bd) {
+  let colon = -1;
+  for (let i = 0; i < bd.length && i < 8192; i++) { if (bd[i] === 0x3A) { colon = i; break; } }
+  if (colon < 0) return null;
+  let h = '';
+  for (let i = 0; i < colon; i++) h += String.fromCharCode(bd[i]);
+  const p = h.split('|');                       // LT|ziplen|K|BLK|crc|deg|csv
+  if (p.length !== 7 || p[0] !== 'LT') return null;
+  const ziplen = +p[1], K = +p[2], BLK = +p[3], crc = p[4], deg = +p[5];
+  const indices = p[6].length ? p[6].split(',').map(Number) : [];
+  if (indices.length !== deg) return null;
+  const data = Uint8Array.from(bd.slice(colon + 1));
+  if (data.length !== BLK) return null;
+  if (!(ziplen > 0 && K > 0 && BLK > 0)) return null;
+  for (const j of indices) if (!(j >= 0 && j < K)) return null;
+  return { ziplen, K, BLK, crc, indices, data };
+}
+
+function newDecoder() {
+  return { meta: null, recovered: null, recoveredCount: 0, pending: [], done: false };
+}
+
+// Nạp 1 symbol vào decoder (peeling). Trả về true nếu có thêm block được giải.
+function addSymbol(dec, sym) {
+  if (dec.done) return false;
+  if (!dec.meta) {
+    dec.meta = { ziplen: sym.ziplen, K: sym.K, BLK: sym.BLK, crc: sym.crc };
+    dec.recovered = new Array(sym.K).fill(null);
+    dec.recoveredCount = 0; dec.pending = [];
   }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } }
-    });
-    video.srcObject = stream;
-    await video.play();
-    scanning = true;
-    setStartBtn('⏸ Dừng', stopScan);
-    statusEl.textContent = 'Đang quét... hướng camera vào lưới QR trên màn hình PC';
+  // rút gọn symbol mới theo các block đã biết
+  let idx = [];
+  let data = sym.data.slice();
+  for (const j of sym.indices) {
+    if (dec.recovered[j]) xorInto(data, dec.recovered[j]);
+    else idx.push(j);
+  }
+  const before = dec.recoveredCount;
+  const queue = [];
+  if (idx.length === 1) queue.push([idx[0], data]);
+  else if (idx.length > 1) dec.pending.push({ idx, data });
+  // (idx.length === 0 => thừa, bỏ)
+
+  // lan truyền (peeling cascade)
+  while (queue.length) {
+    const [j, d] = queue.pop();
+    if (dec.recovered[j]) continue;
+    dec.recovered[j] = d; dec.recoveredCount++;
+    for (let s = dec.pending.length - 1; s >= 0; s--) {
+      const ps = dec.pending[s];
+      const pos = ps.idx.indexOf(j);
+      if (pos !== -1) {
+        xorInto(ps.data, d);
+        ps.idx.splice(pos, 1);
+        if (ps.idx.length === 1) { queue.push([ps.idx[0], ps.data]); dec.pending.splice(s, 1); }
+        else if (ps.idx.length === 0) { dec.pending.splice(s, 1); }
+      }
+    }
+  }
+  if (dec.meta && dec.recoveredCount === dec.meta.K) dec.done = true;
+  return dec.recoveredCount > before;
+}
+
+// Ghép lại file zip (Uint8Array) sau khi giải xong.
+function assemble(dec) {
+  const { K, BLK, ziplen } = dec.meta;
+  const out = new Uint8Array(K * BLK);
+  for (let i = 0; i < K; i++) out.set(dec.recovered[i], i * BLK);
+  return out.slice(0, ziplen);
+}
+
+// Cho phép chạy trong Node (test) lẫn trình duyệt
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { crc32, parseSymbol, newDecoder, addSymbol, assemble };
+}
+</script>
+<script>
+/* ===== Camera + quét 4 góc + ghép, dùng lõi LT phía trên ===== */
+const video=document.getElementById('video');
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d',{willReadFrequently:true});
+const statusEl=document.getElementById('status');
+const bar=document.getElementById('bar');
+const pctEl=document.getElementById('pct');
+const metaEl=document.getElementById('meta');
+const banner=document.getElementById('banner');
+const btnDl=document.getElementById('btn-dl');
+
+let dec=newDecoder();
+let scanning=false, animId=null, fileData=null, reads=0, K=null;
+
+async function startScan(){
+  if(typeof jsQR!=='function'){ statusEl.textContent='❌ Chưa tải được jsQR (cần mạng lần đầu).'; return; }
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment',width:{ideal:1280},height:{ideal:1280}}});
+    video.srcObject=stream; await video.play();
+    scanning=true; setStart('⏸ Dừng',stopScan);
+    statusEl.textContent='Đang quét... chĩa vào lưới QR trên màn hình PC';
     loop();
-  } catch (e) {
-    statusEl.textContent = '❌ Không mở được camera: ' + e.message;
-  }
+  }catch(e){ statusEl.textContent='❌ Không mở được camera: '+e.message; }
 }
+function stopScan(){ scanning=false; if(animId)cancelAnimationFrame(animId); setStart('▶ Tiếp tục',resumeScan); }
+function resumeScan(){ scanning=true; setStart('⏸ Dừng',stopScan); statusEl.textContent='Đang quét...'; loop(); }
+function setStart(t,fn){ const b=document.getElementById('btn-start'); b.textContent=t; b.onclick=fn; }
 
-function stopScan() {
-  scanning = false;
-  if (animId) cancelAnimationFrame(animId);
-  setStartBtn('▶ Tiếp tục', resumeScan);
-  statusEl.textContent = '⏸ Đã dừng';
-}
-function resumeScan() {
-  scanning = true;
-  setStartBtn('⏸ Dừng', stopScan);
-  statusEl.textContent = 'Đang quét...';
-  loop();
-}
-function setStartBtn(text, fn) {
-  const b = document.getElementById('btn-start');
-  b.textContent = text; b.onclick = fn;
-}
-
-// Lấy 1 vùng con (x,y,w,h) từ mảng RGBA đầy đủ — không cần getImageData nhiều lần
-function sliceRegion(src, srcW, x, y, w, h) {
-  const out = new Uint8ClampedArray(w * h * 4);
-  for (let row = 0; row < h; row++) {
-    const s = ((y + row) * srcW + x) * 4;
-    out.set(src.subarray(s, s + w * 4), row * w * 4);
-  }
+function sliceRegion(src,srcW,x,y,w,h){
+  const out=new Uint8ClampedArray(w*h*4);
+  for(let row=0;row<h;row++){ const s=((y+row)*srcW+x)*4; out.set(src.subarray(s,s+w*4),row*w*4); }
   return out;
 }
 
-function loop() {
-  if (!scanning) return;
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    const w = video.videoWidth, h = video.videoHeight;
-    canvas.width = w; canvas.height = h;
-    ctx.drawImage(video, 0, 0);
-    const full = ctx.getImageData(0, 0, w, h).data;
-    const hw = w >> 1, hh = h >> 1;
-
-    // quét cả khung + 4 góc -> gom được nhiều QR mỗi lần chụp; QR vắt qua mép
-    // vẫn được khung full bắt; trùng index thì tự bỏ
-    const regions = [
-      [full, w, w, h],
-      [sliceRegion(full, w, 0,  0,  hw, hh), hw, hw, hh],
-      [sliceRegion(full, w, hw, 0,  w - hw, hh), w - hw, w - hw, hh],
-      [sliceRegion(full, w, 0,  hh, hw, h - hh), hw, hw, h - hh],
-      [sliceRegion(full, w, hw, hh, w - hw, h - hh), w - hw, w - hw, h - hh],
+function loop(){
+  if(!scanning) return;
+  if(video.readyState===video.HAVE_ENOUGH_DATA){
+    const w=video.videoWidth,h=video.videoHeight;
+    canvas.width=w; canvas.height=h; ctx.drawImage(video,0,0);
+    const full=ctx.getImageData(0,0,w,h).data;
+    const hw=w>>1,hh=h>>1;
+    const regions=[
+      [full,w,w,h],
+      [sliceRegion(full,w,0,0,hw,hh),hw,hw,hh],
+      [sliceRegion(full,w,hw,0,w-hw,hh),w-hw,w-hw,hh],
+      [sliceRegion(full,w,0,hh,hw,h-hh),hw,hw,h-hh],
+      [sliceRegion(full,w,hw,hh,w-hw,h-hh),w-hw,w-hw,h-hh],
     ];
-    for (const [data, rw, , rh] of regions) {
-      const code = jsQR(data, rw, rh, { inversionAttempts: 'dontInvert' });
-      if (code && code.binaryData && code.binaryData.length) handleCode(code.binaryData);
+    for(const [data,rw,,rh] of regions){
+      const code=jsQR(data,rw,rh,{inversionAttempts:'dontInvert'});
+      if(code&&code.binaryData&&code.binaryData.length) onSymbol(code.binaryData);
     }
   }
-  animId = requestAnimationFrame(loop);
+  animId=requestAnimationFrame(loop);
 }
 
-function handleCode(bd) {
-  // bd = mảng byte. Tìm ':' (0x3A) đầu tiên -> tách header ASCII khỏi data thô
-  let colon = -1;
-  for (let i = 0; i < bd.length && i < 40; i++) { if (bd[i] === 0x3A) { colon = i; break; } }
-  if (colon < 0) return;
-  let header = '';
-  for (let i = 0; i < colon; i++) header += String.fromCharCode(bd[i]);
-  const parts = header.split('/');
-  if (parts.length !== 3) return;
-  const idx = parseInt(parts[0], 10);
-  const tot = parseInt(parts[1], 10);
-  const crc = parts[2];
-  if (isNaN(idx) || isNaN(tot)) return;
-
-  if (total < 0) { total = tot; expectedCrc = crc; initGrid(tot); }
-  if (idx < 0 || idx >= total) return;
-  if (chunks[idx] !== undefined) return;          // đã có -> bỏ qua
-
-  chunks[idx] = Uint8Array.from(bd.slice(colon + 1));
-  markDot(idx);
+function onSymbol(bd){
+  const sym=parseSymbol(bd);
+  if(!sym) return;
+  if(K===null){ K=sym.K; }
+  reads++;
+  addSymbol(dec,sym);
   updateProgress();
-  statusEl.textContent = `✅ Nhận chunk ${idx + 1} / ${total}`;
-  if (Object.keys(chunks).length === total) onComplete();
+  if(dec.done) onDone();
 }
 
-function initGrid(tot) {
-  grid.innerHTML = '';
-  const show = Math.min(tot, 600);
-  for (let i = 0; i < show; i++) {
-    const d = document.createElement('div');
-    d.className = 'chunk-dot'; d.id = 'dot-' + i;
-    grid.appendChild(d);
-  }
-}
-function markDot(idx) { const d = document.getElementById('dot-' + idx); if (d) d.classList.add('got'); }
-function updateProgress() {
-  const got = Object.keys(chunks).length;
-  const pct = total > 0 ? (got / total * 100).toFixed(1) : 0;
-  progBar.style.width = pct + '%';
-  progText.textContent = `${got} / ${total} chunks (${pct}%)`;
+function updateProgress(){
+  const got=dec.meta?dec.recoveredCount:0;
+  const pct=K?Math.min(100,got/K*100):0;
+  bar.style.width=pct.toFixed(1)+'%';
+  pctEl.textContent=pct.toFixed(0)+'%';
+  metaEl.textContent=`Giải được ${got} / ${K||'?'} block · đã đọc ${reads} symbol`;
+  if(got>0) statusEl.textContent='Đang gom & giải... (thanh có thể đứng rồi nhảy vọt, là bình thường)';
 }
 
-function onComplete() {
+function onDone(){
   stopScan();
-  statusEl.textContent = '🧩 Đủ chunk! Đang ghép & kiểm tra...';
-  setTimeout(() => {
-    // ghép byte thô theo đúng thứ tự index
-    let len = 0;
-    for (let i = 0; i < total; i++) len += chunks[i].length;
-    const bytes = new Uint8Array(len);
-    let off = 0;
-    for (let i = 0; i < total; i++) { bytes.set(chunks[i], off); off += chunks[i].length; }
-    fileData = bytes;
-
-    const got = crc32(bytes);
-    if (got === expectedCrc) {
-      banner.className = 'ok';
-      banner.style.display = 'block';
-      banner.innerHTML = `✅ <strong>Ghép & verify thành công</strong><br>
-        Kích thước: ${formatSize(bytes.length)}<br>
-        CRC32 khớp (<code>${got}</code>) — file chuẩn 100%.`;
-      btnDl.style.display = 'block';
-      statusEl.textContent = 'Hoàn tất!';
-    } else {
-      banner.className = 'bad';
-      banner.style.display = 'block';
-      banner.innerHTML = `❌ <strong>CRC32 KHÔNG khớp</strong><br>
-        Nhận <code>${got}</code>, cần <code>${expectedCrc}</code>.<br>
-        Có chunk bị lỗi. Hãy <strong>Reset</strong> và quét lại.<br>
-        <a class="dl-unverified" onclick="downloadFile(false)">tải bản chưa verify (không khuyến nghị)</a>`;
-      statusEl.textContent = '❌ File có thể hỏng — quét lại.';
+  statusEl.textContent='🧩 Đủ rồi! Đang ghép & kiểm tra...';
+  setTimeout(()=>{
+    fileData=assemble(dec);
+    const got=crc32(fileData);
+    if(got===dec.meta.crc){
+      banner.className='ok'; banner.style.display='block';
+      banner.innerHTML=`✅ <strong>Giải & verify thành công</strong><br>
+        Kích thước: ${fmt(fileData.length)}<br>CRC32 khớp (<code>${got}</code>) — file chuẩn 100%.`;
+      btnDl.style.display='block'; statusEl.textContent='Hoàn tất!';
+    }else{
+      banner.className='bad'; banner.style.display='block';
+      banner.innerHTML=`❌ <strong>CRC32 lệch</strong> (<code>${got}</code> ≠ <code>${dec.meta.crc}</code>).<br>
+        Hiếm khi xảy ra. Hãy Reset và quét lại.`;
+      statusEl.textContent='❌ Có lỗi dữ liệu — quét lại.';
     }
-  }, 200);
+  },150);
 }
 
-function downloadFile() {
-  if (!fileData) return;
-  const blob = new Blob([fileData], { type: 'application/zip' });
-  const url  = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'source-code.zip';
-  a.click();
+function downloadFile(){
+  if(!fileData) return;
+  const url=URL.createObjectURL(new Blob([fileData],{type:'application/zip'}));
+  const a=document.createElement('a'); a.href=url; a.download='source-code.zip'; a.click();
   URL.revokeObjectURL(url);
 }
-
-function resetAll() {
-  stopScan();
-  chunks = {}; total = -1; expectedCrc = null; fileData = null;
-  grid.innerHTML = '';
-  banner.style.display = 'none';
-  btnDl.style.display = 'none';
-  progBar.style.width = '0%';
-  progText.textContent = 'Chưa nhận chunk nào';
-  statusEl.textContent = 'Đã reset. Nhấn Bắt đầu để quét lại.';
-  setStartBtn('▶ Bắt đầu', startScan);
+function resetAll(){
+  stopScan(); dec=newDecoder(); fileData=null; reads=0; K=null;
+  banner.style.display='none'; btnDl.style.display='none';
+  bar.style.width='0%'; pctEl.textContent='0%'; metaEl.textContent='Chưa nhận symbol nào';
+  statusEl.textContent='Đã reset. Nhấn Bắt đầu để quét lại.'; setStart('▶ Bắt đầu',startScan);
 }
-
-function formatSize(b) {
-  if (b < 1024) return b + ' B';
-  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
-  return (b / 1048576).toFixed(1) + ' MB';
-}
+function fmt(b){ if(b<1024)return b+' B'; if(b<1048576)return (b/1024).toFixed(1)+' KB'; return (b/1048576).toFixed(1)+' MB'; }
 </script>
 </body>
 </html>
