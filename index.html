@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>QR File Receiver</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #0a0a0a;
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    padding: 16px;
+    letter-spacing: 0.5px;
+  }
+
+  #camera-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  #video {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    display: block;
+    background: #111;
+  }
+
+  #canvas { display: none; }
+
+  /* Khung ngắm QR */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .scan-box {
+    width: 65%;
+    aspect-ratio: 1;
+    border: 2px solid rgba(255,255,255,0.6);
+    border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
+    position: relative;
+  }
+  .scan-box::before, .scan-box::after,
+  .scan-box span::before, .scan-box span::after {
+    content: '';
+    position: absolute;
+    width: 20px; height: 20px;
+    border-color: #4ade80;
+    border-style: solid;
+  }
+  .scan-box::before  { top:-2px;    left:-2px;  border-width: 3px 0 0 3px; border-radius: 6px 0 0 0; }
+  .scan-box::after   { top:-2px;    right:-2px; border-width: 3px 3px 0 0; border-radius: 0 6px 0 0; }
+  .scan-box span::before { bottom:-2px; left:-2px;  border-width: 0 0 3px 3px; border-radius: 0 0 0 6px; }
+  .scan-box span::after  { bottom:-2px; right:-2px; border-width: 0 3px 3px 0; border-radius: 0 0 6px 0; }
+
+  /* Scan line animation */
+  .scan-line {
+    position: absolute;
+    left: 4px; right: 4px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #4ade80, transparent);
+    animation: scan 2s linear infinite;
+  }
+  @keyframes scan {
+    0%   { top: 4px; }
+    100% { top: calc(100% - 6px); }
+  }
+
+  /* Status */
+  #status {
+    font-size: 13px;
+    color: #4ade80;
+    padding: 10px 16px 4px;
+    text-align: center;
+    min-height: 36px;
+  }
+
+  /* Progress */
+  #progress-wrap {
+    width: calc(100% - 32px);
+    max-width: 388px;
+    margin: 6px 0;
+  }
+  #progress-bar-bg {
+    background: #222;
+    border-radius: 99px;
+    height: 10px;
+    overflow: hidden;
+  }
+  #progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #22c55e, #4ade80);
+    border-radius: 99px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+  #progress-text {
+    font-size: 12px;
+    color: #888;
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  /* Chunk grid */
+  #chunk-wrap {
+    width: calc(100% - 32px);
+    max-width: 388px;
+    margin: 10px 0;
+  }
+  #chunk-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    max-height: 80px;
+    overflow: hidden;
+  }
+  .chunk-dot {
+    width: 8px; height: 8px;
+    border-radius: 2px;
+    background: #222;
+  }
+  .chunk-dot.got { background: #4ade80; }
+
+  /* Buttons */
+  #btn-wrap {
+    display: flex;
+    gap: 10px;
+    padding: 10px 16px 20px;
+    width: 100%;
+    max-width: 420px;
+  }
+  button {
+    flex: 1;
+    padding: 13px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #btn-start  { background: #22c55e; color: #000; }
+  #btn-reset  { background: #222;    color: #fff; }
+  #btn-download { background: #3b82f6; color: #fff; display: none; }
+
+  /* Done banner */
+  #done-banner {
+    display: none;
+    background: #14532d;
+    border: 1px solid #22c55e;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin: 8px 16px;
+    width: calc(100% - 32px);
+    max-width: 388px;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<h1>📡 QR File Receiver</h1>
+
+<div id="camera-wrap">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+  <div class="overlay">
+    <div class="scan-box">
+      <span></span>
+      <div class="scan-line"></div>
+    </div>
+  </div>
+</div>
+
+<div id="status">Nhấn BẮT ĐẦU để mở camera</div>
+
+<div id="progress-wrap">
+  <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+  <div id="progress-text">Chưa nhận chunk nào</div>
+</div>
+
+<div id="chunk-wrap">
+  <div id="chunk-grid"></div>
+</div>
+
+<div id="done-banner"></div>
+
+<div id="btn-wrap">
+  <button id="btn-start"    onclick="startScan()">▶ Bắt đầu</button>
+  <button id="btn-reset"    onclick="resetAll()">↺ Reset</button>
+  <button id="btn-download" onclick="downloadFile()">⬇ Tải file</button>
+</div>
+
+<script>
+// ── Trình đọc QR thuần JS (thư viện jsQR CDN-free inline) ──
+// Dùng BarcodeDetector API có sẵn trên Safari iOS 17+
+// Fallback: vẽ lên canvas rồi đọc thủ công
+
+const video    = document.getElementById('video');
+const canvas   = document.getElementById('canvas');
+const ctx      = canvas.getContext('2d', { willReadFrequently: true });
+const status   = document.getElementById('status');
+const progBar  = document.getElementById('progress-bar');
+const progText = document.getElementById('progress-text');
+const grid     = document.getElementById('chunk-grid');
+const banner   = document.getElementById('done-banner');
+const btnDl    = document.getElementById('btn-download');
+
+let chunks     = {};
+let total      = -1;
+let scanning   = false;
+let detector   = null;
+let animId     = null;
+let lastSeen   = new Set();
+let fileData   = null;
+
+// ── Khởi tạo BarcodeDetector ──
+async function initDetector() {
+  if ('BarcodeDetector' in window) {
+    detector = new BarcodeDetector({ formats: ['qr_code'] });
+    return true;
+  }
+  return false;
+}
+
+// ── Bắt đầu scan ──
+async function startScan() {
+  const ok = await initDetector();
+  if (!ok) {
+    status.textContent = '⚠️ Safari này chưa hỗ trợ BarcodeDetector. Cần iOS 17+ hoặc Chrome.';
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } }
+    });
+    video.srcObject = stream;
+    await video.play();
+    scanning = true;
+    document.getElementById('btn-start').textContent = '⏸ Dừng';
+    document.getElementById('btn-start').onclick = stopScan;
+    status.textContent = 'Đang scan... hướng camera vào màn hình PC';
+    loop();
+  } catch(e) {
+    status.textContent = '❌ Không mở được camera: ' + e.message;
+  }
+}
+
+function stopScan() {
+  scanning = false;
+  if (animId) cancelAnimationFrame(animId);
+  document.getElementById('btn-start').textContent = '▶ Tiếp tục';
+  document.getElementById('btn-start').onclick = resumeScan;
+  status.textContent = '⏸ Đã dừng';
+}
+
+async function resumeScan() {
+  scanning = true;
+  document.getElementById('btn-start').textContent = '⏸ Dừng';
+  document.getElementById('btn-start').onclick = stopScan;
+  status.textContent = 'Đang scan...';
+  loop();
+}
+
+// ── Vòng lặp scan ──
+async function loop() {
+  if (!scanning) return;
+  try {
+    canvas.width  = video.videoWidth  || 640;
+    canvas.height = video.videoHeight || 640;
+    ctx.drawImage(video, 0, 0);
+
+    const results = await detector.detect(canvas);
+    for (const r of results) {
+      processQR(r.rawValue);
+    }
+  } catch(e) {}
+
+  animId = requestAnimationFrame(loop);
+}
+
+// ── Xử lý từng QR ──
+function processQR(text) {
+  // Format: "index/total:data"
+  const colon = text.indexOf(':');
+  if (colon < 0) return;
+
+  const meta  = text.substring(0, colon).split('/');
+  if (meta.length !== 2) return;
+
+  const idx = parseInt(meta[0]);
+  const tot = parseInt(meta[1]);
+  const data = text.substring(colon + 1);
+
+  if (isNaN(idx) || isNaN(tot)) return;
+
+  // Khởi tạo lần đầu
+  if (total < 0) {
+    total = tot;
+    initGrid(tot);
+  }
+
+  if (chunks[idx] !== undefined) return; // đã có rồi
+
+  chunks[idx] = data;
+  markDot(idx);
+  updateProgress();
+
+  status.textContent = `✅ Nhận chunk ${idx + 1} / ${total}`;
+
+  if (Object.keys(chunks).length === total) {
+    onComplete();
+  }
+}
+
+// ── Giao diện ──
+function initGrid(tot) {
+  grid.innerHTML = '';
+  const show = Math.min(tot, 300);
+  for (let i = 0; i < show; i++) {
+    const d = document.createElement('div');
+    d.className = 'chunk-dot';
+    d.id = 'dot-' + i;
+    grid.appendChild(d);
+  }
+}
+
+function markDot(idx) {
+  const dot = document.getElementById('dot-' + idx);
+  if (dot) dot.classList.add('got');
+}
+
+function updateProgress() {
+  const got = Object.keys(chunks).length;
+  const pct = total > 0 ? (got / total * 100).toFixed(1) : 0;
+  progBar.style.width = pct + '%';
+  progText.textContent = `${got} / ${total} chunks (${pct}%)`;
+}
+
+// ── Hoàn tất ──
+function onComplete() {
+  stopScan();
+  status.textContent = '🎉 Nhận đủ! Đang ghép file...';
+
+  setTimeout(() => {
+    try {
+      // Ghép base64
+      let b64 = '';
+      for (let i = 0; i < total; i++) b64 += chunks[i];
+
+      // Decode base64 → bytes
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+      fileData = bytes;
+
+      banner.style.display = 'block';
+      banner.innerHTML = `✅ <strong>Ghép file thành công!</strong><br>
+        Kích thước: ${formatSize(bytes.length)}<br>
+        Nhấn <strong>Tải file</strong> để lưu ZIP về.`;
+
+      btnDl.style.display = 'block';
+      status.textContent = 'Hoàn tất!';
+    } catch(e) {
+      status.textContent = '❌ Lỗi ghép file: ' + e.message;
+    }
+  }, 300);
+}
+
+// ── Tải file ──
+function downloadFile() {
+  if (!fileData) return;
+  const blob = new Blob([fileData], { type: 'application/zip' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'source-code.zip';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Reset ──
+function resetAll() {
+  stopScan();
+  chunks  = {};
+  total   = -1;
+  fileData = null;
+  grid.innerHTML    = '';
+  banner.style.display  = 'none';
+  btnDl.style.display   = 'none';
+  progBar.style.width   = '0%';
+  progText.textContent  = 'Chưa nhận chunk nào';
+  status.textContent    = 'Đã reset. Nhấn Bắt đầu để scan lại.';
+  document.getElementById('btn-start').textContent = '▶ Bắt đầu';
+  document.getElementById('btn-start').onclick = startScan;
+}
+
+function formatSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+</script>
+</body>
+</html>
