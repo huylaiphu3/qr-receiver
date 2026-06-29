@@ -18,8 +18,8 @@
   #video { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: #111; }
   #canvas { display: none; }
   .overlay { position: absolute; inset: 0; pointer-events: none; }
-  /* 4 ô mờ gợi ý lưới 2x2 của bên gửi */
-  .grid-hint { position:absolute; inset:8%; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:6%; }
+  /* ô mờ gợi ý lưới 4x2 của bên gửi */
+  .grid-hint { position:absolute; inset:8%; display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(2,1fr); gap:4%; }
   .grid-hint > div { border:1.5px dashed rgba(74,222,128,0.35); border-radius:8px; }
   #status { font-size: 13px; color: #4ade80; padding: 10px 16px 4px; text-align: center; min-height: 34px; }
   #progress-wrap { width: calc(100% - 32px); max-width: 408px; margin: 6px 0; }
@@ -45,7 +45,7 @@
 <div id="camera-wrap">
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
-  <div class="overlay"><div class="grid-hint"><div></div><div></div><div></div><div></div></div></div>
+  <div class="overlay"><div class="grid-hint"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>
 </div>
 <div id="status">Nhấn Bắt đầu để mở camera</div>
 <div id="progress-wrap">
@@ -71,6 +71,13 @@ const grid     = document.getElementById('chunk-grid');
 const banner   = document.getElementById('banner');
 const btnDl    = document.getElementById('btn-download');
 
+// PHẢI KHỚP với COLS/ROWS bên FileSender.java. Receiver cắt khung camera thành
+// GRID_COLS×GRID_ROWS vùng (có chồng mép) rồi chạy jsQR từng vùng, vì jsQR chỉ
+// trả 1 QR mỗi lần gọi. Cắt khớp lưới -> mỗi vùng đúng 1 QR -> bắt đủ 8 QR/khung.
+const GRID_COLS = 4;
+const GRID_ROWS = 2;
+const REGION_OVERLAP = 0.12;   // chồng 12% sang vùng kế -> QR vắt qua mép vẫn lọt
+
 let chunks = {};          // idx -> Uint8Array (byte zip thô của chunk)
 let total = -1;
 let expectedCrc = null;   // CRC32 hex của cả file, lấy từ header mỗi QR
@@ -93,7 +100,9 @@ async function startScan() {
   }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } }
+      // Độ phân giải cao hơn -> mỗi QR có nhiều pixel camera hơn -> đọc được lưới
+      // dày (4x2 = 8 QR) mà không bị mờ. iPhone đời mới thừa sức 1920.
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1920 } }
     });
     video.srcObject = stream;
     await video.play();
@@ -140,20 +149,29 @@ function loop() {
     canvas.width = w; canvas.height = h;
     ctx.drawImage(video, 0, 0);
     const full = ctx.getImageData(0, 0, w, h).data;
-    const hw = w >> 1, hh = h >> 1;
 
-    // quét cả khung + 4 góc -> gom được nhiều QR mỗi lần chụp; QR vắt qua mép
-    // vẫn được khung full bắt; trùng index thì tự bỏ
-    const regions = [
-      [full, w, w, h],
-      [sliceRegion(full, w, 0,  0,  hw, hh), hw, hw, hh],
-      [sliceRegion(full, w, hw, 0,  w - hw, hh), w - hw, w - hw, hh],
-      [sliceRegion(full, w, 0,  hh, hw, h - hh), hw, hw, h - hh],
-      [sliceRegion(full, w, hw, hh, w - hw, h - hh), w - hw, w - hw, h - hh],
-    ];
-    for (const [data, rw, , rh] of regions) {
-      const code = jsQR(data, rw, rh, { inversionAttempts: 'dontInvert' });
+    // 1) quét cả khung -> bắt mọi QR jsQR thấy rõ nhất (thường là 1 cái).
+    // 2) cắt theo lưới GRID_COLS×GRID_ROWS (có chồng mép) -> mỗi vùng ~1 QR,
+    //    chạy jsQR riêng từng vùng để gom đủ các QR còn lại trong khung.
+    // Trùng index thì handleCode tự bỏ.
+    {
+      const code = jsQR(full, w, h, { inversionAttempts: 'dontInvert' });
       if (code && code.binaryData && code.binaryData.length) handleCode(code.binaryData);
+    }
+    const cw = Math.floor(w / GRID_COLS);
+    const chh = Math.floor(h / GRID_ROWS);
+    const ox = Math.floor(cw * REGION_OVERLAP);
+    const oy = Math.floor(chh * REGION_OVERLAP);
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const x = Math.max(0, c * cw - ox);
+        const y = Math.max(0, r * chh - oy);
+        const rw = Math.min(w - x, cw + 2 * ox);
+        const rh = Math.min(h - y, chh + 2 * oy);
+        const data = sliceRegion(full, w, x, y, rw, rh);
+        const code = jsQR(data, rw, rh, { inversionAttempts: 'dontInvert' });
+        if (code && code.binaryData && code.binaryData.length) handleCode(code.binaryData);
+      }
     }
   }
   animId = requestAnimationFrame(loop);
