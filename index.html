@@ -177,57 +177,52 @@ function setStartBtn(text, fn) {
   b.textContent = text; b.onclick = fn;
 }
 
-// Buffer slice DÙNG LẠI giữa các vùng/khung (tránh cấp phát Uint8ClampedArray mỗi
-// lần -> giảm áp lực GC, tăng tốc độ quét trên iPhone). Trả về VIEW đúng kích thước.
-let sliceBuf = null;
-function sliceRegion(src, srcW, x, y, w, h) {
-  const need = w * h * 4;
-  if (!sliceBuf || sliceBuf.length < need) sliceBuf = new Uint8ClampedArray(need);
-  for (let row = 0; row < h; row++) {
-    const s = ((y + row) * srcW + x) * 4;
-    sliceBuf.set(src.subarray(s, s + w * 4), row * w * 4);
-  }
-  return sliceBuf.subarray(0, need);
-}
-
-// Quét full-frame (1920x1080) rất nặng và ~ tốn bằng cả 8 vùng cộng lại; các vùng
-// + chồng mép đã phủ hết lưới, nên chỉ chạy full-frame thưa (mỗi FULL_SCAN_EVERY
-// khung) để bắt QR vắt qua ngoài mép chồng. KHÔNG hạ độ phân giải -> giữ ~3px/module.
-const FULL_SCAN_EVERY = 4;
+// Quét NHẸ theo round-robin: mỗi vòng requestAnimationFrame chỉ xử lý MỘT vùng
+// (luân phiên qua GRID_COLS×GRID_ROWS) thay vì decode cả 4 vùng + full-frame một
+// lúc như cũ. Mỗi vòng nhẹ ~4 lần -> rAF chạy nhanh hơn nhiều -> nhận diện tức thì
+// hơn. drawImage chỉ vẽ ĐÚNG vùng nguồn -> getImageData + jsQR chỉ trên ~1/4 ảnh,
+// khỏi cần copy thủ công (sliceRegion cũ). Trùng n -> handleCode tự bỏ.
+const FULL_SCAN_EVERY = 8;   // thi thoảng quét cả khung -> bắt QR vắt qua ranh giới vùng
 let frameCounter = 0;
+let regionIdx = 0;
+
+function scanRegion(x, y, w, h) {
+  if (w <= 0 || h <= 0) return;
+  canvas.width = w; canvas.height = h;
+  ctx.drawImage(video, x, y, w, h, 0, 0, w, h);   // chỉ vẽ vùng nguồn -> rẻ
+  const img = ctx.getImageData(0, 0, w, h);
+  const code = jsQR(img.data, w, h, { inversionAttempts: 'dontInvert' });
+  if (code && code.binaryData && code.binaryData.length) handleCode(code.binaryData);
+}
 
 function loop() {
   if (!scanning) return;
   if (video.readyState === video.HAVE_ENOUGH_DATA) {
     const w = video.videoWidth, h = video.videoHeight;
-    canvas.width = w; canvas.height = h;
-    ctx.drawImage(video, 0, 0);
-    const full = ctx.getImageData(0, 0, w, h).data;
 
-    // 1) thỉnh thoảng quét cả khung (bắt QR vắt mép ngoài vùng chồng).
     if (frameCounter % FULL_SCAN_EVERY === 0) {
-      const code = jsQR(full, w, h, { inversionAttempts: 'dontInvert' });
+      // quét cả khung (thưa) -> bắt QR nằm vắt qua ranh giới giữa các vùng
+      canvas.width = w; canvas.height = h;
+      ctx.drawImage(video, 0, 0);
+      const full = ctx.getImageData(0, 0, w, h);
+      const code = jsQR(full.data, w, h, { inversionAttempts: 'dontInvert' });
       if (code && code.binaryData && code.binaryData.length) handleCode(code.binaryData);
+    } else {
+      // chỉ MỘT vùng/vòng (round-robin) -> vòng lặp nhẹ, nhận diện nhanh
+      const cw = Math.floor(w / GRID_COLS);
+      const chh = Math.floor(h / GRID_ROWS);
+      const ox = Math.floor(cw * REGION_OVERLAP);
+      const oy = Math.floor(chh * REGION_OVERLAP);
+      const idx = regionIdx % (GRID_COLS * GRID_ROWS);
+      const c = idx % GRID_COLS, r = Math.floor(idx / GRID_COLS);
+      const x = Math.max(0, c * cw - ox);
+      const y = Math.max(0, r * chh - oy);
+      const rw = Math.min(w - x, cw + 2 * ox);
+      const rh = Math.min(h - y, chh + 2 * oy);
+      regionIdx++;
+      scanRegion(x, y, rw, rh);
     }
     frameCounter++;
-
-    // 2) cắt theo lưới GRID_COLS×GRID_ROWS (có chồng mép) -> mỗi vùng ~1 QR,
-    //    jsQR riêng từng vùng để gom đủ các QR trong khung. Trùng n -> handleCode tự bỏ.
-    const cw = Math.floor(w / GRID_COLS);
-    const chh = Math.floor(h / GRID_ROWS);
-    const ox = Math.floor(cw * REGION_OVERLAP);
-    const oy = Math.floor(chh * REGION_OVERLAP);
-    for (let r = 0; r < GRID_ROWS; r++) {
-      for (let c = 0; c < GRID_COLS; c++) {
-        const x = Math.max(0, c * cw - ox);
-        const y = Math.max(0, r * chh - oy);
-        const rw = Math.min(w - x, cw + 2 * ox);
-        const rh = Math.min(h - y, chh + 2 * oy);
-        const data = sliceRegion(full, w, x, y, rw, rh);
-        const code = jsQR(data, rw, rh, { inversionAttempts: 'dontInvert' });
-        if (code && code.binaryData && code.binaryData.length) handleCode(code.binaryData);
-      }
-    }
   }
   animId = requestAnimationFrame(loop);
 }
