@@ -19,7 +19,7 @@
   #canvas { display: none; }
   .overlay { position: absolute; inset: 0; pointer-events: none; }
   /* ô mờ gợi ý lưới 4x2 của bên gửi */
-  .grid-hint { position:absolute; inset:8%; display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(2,1fr); gap:4%; }
+  .grid-hint { position:absolute; inset:8%; display:grid; grid-template-columns:repeat(2,1fr); grid-template-rows:repeat(2,1fr); gap:4%; }
   .grid-hint > div { border:1.5px dashed rgba(74,222,128,0.35); border-radius:8px; }
   #status { font-size: 13px; color: #4ade80; padding: 10px 16px 4px; text-align: center; min-height: 34px; }
   #progress-wrap { width: calc(100% - 32px); max-width: 408px; margin: 6px 0; }
@@ -45,7 +45,7 @@
 <div id="camera-wrap">
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
-  <div class="overlay"><div class="grid-hint"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>
+  <div class="overlay"><div class="grid-hint"><div></div><div></div><div></div><div></div></div></div>
 </div>
 <div id="status">Nhấn Bắt đầu để mở camera</div>
 <div id="progress-wrap">
@@ -74,7 +74,7 @@ const btnDl    = document.getElementById('btn-download');
 // PHẢI KHỚP với COLS/ROWS bên FileSender.java. Receiver cắt khung camera thành
 // GRID_COLS×GRID_ROWS vùng (có chồng mép) rồi chạy jsQR từng vùng, vì jsQR chỉ
 // trả 1 QR mỗi lần gọi. Cắt khớp lưới -> mỗi vùng đúng 1 QR -> bắt đủ 8 QR/khung.
-const GRID_COLS = 4;
+const GRID_COLS = 2;
 const GRID_ROWS = 2;
 const REGION_OVERLAP = 0.12;   // chồng 12% sang vùng kế -> QR vắt qua mép vẫn lọt
 
